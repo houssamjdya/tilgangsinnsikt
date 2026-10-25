@@ -53,10 +53,10 @@ jobs:
           --health-timeout 5s
           --health-retries 30
     env:
-      PGHOST: localhost
-      PGPORT: "5432"
-      PGUSER: tilgangsinnsikt
-      PGDATABASE: tilgangsinnsikt
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: tilgangsinnsikt
+      POSTGRES_DB: tilgangsinnsikt
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
