@@ -1,11 +1,23 @@
 import uuid
 from collections.abc import Iterator
+from datetime import date
+from pathlib import Path
 
 import psycopg
 import pytest
 from psycopg import sql
 
 from tilgangsinnsikt import db
+from tilgangsinnsikt.synth import generator
+
+AS_OF = date(2026, 6, 1)
+
+
+@pytest.fixture(scope="session")
+def small_dataset(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    out = tmp_path_factory.mktemp("synthetic")
+    generator.generate(42, generator.SMALL, AS_OF, out)
+    return out
 
 
 @pytest.fixture

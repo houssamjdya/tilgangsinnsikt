@@ -1,0 +1,26 @@
+rules:
+  - id: utbetaling-registrere-og-godkjenne
+    severity: critical
+    description_nb: "Samme person kan både registrere og godkjenne en utbetaling."
+    left: [ytelse:utbetaling-registrere]
+    right: [ytelse:utbetaling-godkjenne]
+  - id: bilag-registrere-og-attestere
+    severity: critical
+    description_nb: "Samme person kan både registrere og attestere et bilag."
+    left: [okonomi:bilag-registrere]
+    right: [okonomi:bilag-attestere]
+  - id: leverandor-og-attestere
+    severity: high
+    description_nb: "Samme person kan endre leverandøropplysninger og attestere bilag til utbetaling."
+    left: [okonomi:leverandor-endre]
+    right: [okonomi:bilag-attestere]
+  - id: identadmin-og-hr-admin
+    severity: high
+    description_nb: "Samme person kan både opprette identiteter sentralt og endre ansettelsesforhold i HR-portalen."
+    left: [identadmin:identadmin-sentral]
+    right: [hrportal:hr-admin]
+  - id: utvikler-og-produksjonsdata
+    severity: medium
+    description_nb: "En utvikler har lesetilgang til skjermede personopplysninger eller hele arkivet i produksjon."
+    left: [entra:Utviklere]
+    right: [personregister:les-skjermet, arkiv:les-alle]
