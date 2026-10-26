@@ -7,6 +7,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Annotated
 
+import httpx
 import psycopg
 import typer
 from rich import box
@@ -15,6 +16,8 @@ from rich.table import Table
 from rich.text import Text
 
 from tilgangsinnsikt import __version__, db, evaluation, runs
+from tilgangsinnsikt.config import EntraSettings
+from tilgangsinnsikt.connectors import entra
 from tilgangsinnsikt.report import SEVERITY_ORDER, Report, markdown, terminal
 from tilgangsinnsikt.synth import generator
 
@@ -267,3 +270,65 @@ def demo(
     load(data=data)
     analyse(only=None, as_of=as_of_value)
     report(format="terminal", out=REPORT_PATH, run_id=None)
+
+
+@app.command("connect-entra")
+def connect_entra(
+    dry_run: Annotated[
+        bool, typer.Option(help="Read from Graph and print counts without writing anything.")
+    ] = False,
+) -> None:
+    """Read users, groups and memberships from Microsoft Entra ID (read-only Graph access)."""
+    settings = EntraSettings()
+    try:
+        entra.require(settings)
+        patterns = entra.load_risk_patterns(settings.privileged_groups)
+        identity_map = (
+            entra.load_identity_map(settings.identity_map) if settings.identity_map else {}
+        )
+        with console.status("Reading from Microsoft Graph"):
+            snapshot = entra.fetch(entra.client(settings))
+    except entra.EntraError as error:
+        console.print(f"[red]Entra ID: {error}[/red]")
+        raise typer.Exit(1) from None
+    except OSError as error:
+        console.print(f"[red]Could not read a settings file ({type(error).__name__}).[/red]")
+        raise typer.Exit(1) from None
+    except httpx.HTTPError as error:
+        console.print(f"[red]Could not reach Microsoft Graph ({type(error).__name__}).[/red]")
+        raise typer.Exit(1) from None
+
+    if dry_run:
+        identities = _identity_ids()
+        if identities is None:
+            console.print("[yellow]No database: links to identities were not checked.[/yellow]")
+        rows = entra.map_snapshot(snapshot, identities or set(), identity_map, patterns)
+    else:
+        with database() as conn:
+            identities = {r[0] for r in conn.execute("select identity_id from identity")}
+            rows = entra.map_snapshot(snapshot, identities, identity_map, patterns)
+            entra.write(conn, rows)
+
+    table = Table(title="Entra ID (counts only)")
+    table.add_column("Item")
+    table.add_column("Count", justify="right")
+    for item, count in sorted(rows.counts.items()):
+        table.add_row(item, f"{count:,}")
+    console.print(table)
+    if not snapshot.sign_in_activity:
+        console.print(
+            "[yellow]signInActivity is not available (it needs Entra ID P1 and"
+            " AuditLog.Read.All), so last_login is empty for every Entra account.[/yellow]"
+        )
+    if dry_run:
+        console.print("Dry run: nothing was written.")
+    else:
+        console.print("Replaced all rows with source entra; rows from other sources are unchanged.")
+
+
+def _identity_ids() -> set[str] | None:
+    try:
+        with db.connect() as conn:
+            return {r[0] for r in conn.execute("select identity_id from identity")}
+    except psycopg.Error:
+        return None

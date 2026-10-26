@@ -18,6 +18,7 @@ from tilgangsinnsikt.analyses.base import (
     save,
     who,
 )
+from tilgangsinnsikt.config import SodGroupSettings
 
 ANALYSIS = "sod"
 RULES_PATH = Path(__file__).resolve().parents[3] / "rules" / "sod_rules.yaml"
@@ -57,8 +58,15 @@ def load_rules(path: Path = RULES_PATH) -> list[SodRule]:
 
 @register(ANALYSIS)
 def run(
-    conn: psycopg.Connection, run_id: str, as_of: date, rules_path: Path = RULES_PATH
+    conn: psycopg.Connection,
+    run_id: str,
+    as_of: date,
+    rules_path: Path = RULES_PATH,
+    group_names: dict[str, str] | None = None,
 ) -> list[Finding]:
+    """group_names maps a rule entitlement such as entra:Utviklere to an Entra group name."""
+    if group_names is None:
+        group_names = SodGroupSettings().sod_groups
     rules = {rule.id: rule for rule in load_rules(rules_path)}
     sides = [
         (rule.id, side, e)
@@ -67,8 +75,21 @@ def run(
         for e in entitlements
     ]
     query = f"""
-        with rule_side (rule_id, side, entitlement_id) as (
+        with named_side (rule_id, side, entitlement_id) as (
             select * from unnest(%(rule_ids)s::text[], %(sides)s::text[], %(entitlements)s::text[])
+        ),
+        group_name (alias, name) as (
+            select * from unnest(%(aliases)s::text[], %(group_names)s::text[])
+        ),
+        -- Entra groups are stored under their object ID; a configured display name lets
+        -- a rule written for entra:Utviklere match the real group.
+        rule_side as (
+            select rule_id, side, entitlement_id from named_side
+            union
+            select n.rule_id, n.side, e.entitlement_id
+            from named_side n
+            join group_name g on g.alias = n.entitlement_id
+            join entitlement e on e.source = 'entra' and lower(e.name) = lower(g.name)
         ),
         held as (
             select i.identity_id, i.display_name, r.rule_id, r.side, s.entitlement_id,
@@ -87,10 +108,16 @@ def run(
                array_agg(distinct entitlement_id) filter (where side = 'left') as left_held,
                array_agg(distinct entitlement_id) filter (where side = 'right') as right_held,
                array_agg(distinct account_id) as accounts,
-               greatest(
-                   min(granted_at) filter (where side = 'left'),
-                   min(granted_at) filter (where side = 'right')
-               ) as since
+               -- greatest() skips nulls, but an unknown grant date on either side
+               -- makes the start of the combination unknown too.
+               case
+                   when min(granted_at) filter (where side = 'left') is null
+                     or min(granted_at) filter (where side = 'right') is null then null
+                   else greatest(
+                       min(granted_at) filter (where side = 'left'),
+                       min(granted_at) filter (where side = 'right')
+                   )
+               end as since
         from held
         group by identity_id, display_name, rule_id
         having bool_or(side = 'left') and bool_or(side = 'right')
@@ -101,11 +128,15 @@ def run(
         "rule_ids": [s[0] for s in sides],
         "sides": [s[1] for s in sides],
         "entitlements": [s[2] for s in sides],
+        "aliases": list(group_names),
+        "group_names": list(group_names.values()),
     }
     with conn.transaction():
         findings = []
         for row in rows(conn, query, params):
             rule = rules[row["rule_id"]]
+            since = row["since"]
+            held_since = f", og har hatt kombinasjonen siden {nb_date(since)}" if since else ""
             findings.append(
                 Finding(
                     ANALYSIS,
@@ -113,8 +144,8 @@ def run(
                     rule.severity,
                     "Brudd på arbeidsdeling",
                     f"{who(row['display_name'], row['identity_id'])} har både "
-                    f"{nb_list(row['left_labels'])} og {nb_list(row['right_labels'])}, og har "
-                    f"hatt kombinasjonen siden {nb_date(row['since'])}. {rule.description_nb} "
+                    f"{nb_list(row['left_labels'])} og {nb_list(row['right_labels'])}"
+                    f"{held_since}. {rule.description_nb} "
                     "Fjern en av rettighetene, eller dokumenter et kompenserende tiltak hvis "
                     "kombinasjonen er nødvendig.",
                     {
@@ -122,7 +153,7 @@ def run(
                         "left": row["left_held"],
                         "right": row["right_held"],
                         "accounts": row["accounts"],
-                        "since": row["since"].isoformat(),
+                        "since": since and since.isoformat(),
                     },
                     identity_id=row["identity_id"],
                 )

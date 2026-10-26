@@ -26,7 +26,7 @@ def _tables(conn: psycopg.Connection) -> set[str]:
 
 
 def test_migrate_creates_model_and_is_idempotent(conn: psycopg.Connection) -> None:
-    assert db.migrate(conn) == ["0001_schema", "0002_analysis_run"]
+    assert db.migrate(conn) == ["0001_schema", "0002_analysis_run", "0003_source_columns"]
     assert db.migrate(conn) == []
     assert _tables(conn) == MODEL_TABLES | {"analysis_run", "schema_migration"}
 

@@ -1,0 +1,14 @@
+# Display name patterns (shell-style, case-insensitive) that set the risk level of an
+# Entra group. Groups that match nothing are low risk. Point ENTRA_PRIVILEGED_GROUPS at
+# your own copy outside the repository to use the group names of a real tenant.
+high:
+  - "*admins"
+  - "*admin"
+  - "*-admin-*"
+  - "*administrators"
+  - "*privileged*"
+  - "GA-*"
+  - "PIM-*"
+medium:
+  - "*utvikler*"
+  - "*developer*"
