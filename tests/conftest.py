@@ -1,3 +1,4 @@
+import json
 import uuid
 from collections.abc import Iterator
 from datetime import date
@@ -33,3 +34,15 @@ def conn() -> Iterator[psycopg.Connection]:
         connection.close()
         with db.connect() as admin:
             admin.execute(sql.SQL("drop schema {} cascade").format(sql.Identifier(schema)))
+
+
+@pytest.fixture
+def loaded(conn: psycopg.Connection, small_dataset: Path) -> psycopg.Connection:
+    db.migrate(conn)
+    db.load_csv_dir(conn, small_dataset)
+    return conn
+
+
+@pytest.fixture(scope="session")
+def ground_truth(small_dataset: Path) -> dict[str, list[str]]:
+    return json.loads((small_dataset / "ground_truth.json").read_text(encoding="utf-8"))["planted"]
