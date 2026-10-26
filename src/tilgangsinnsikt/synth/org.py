@@ -65,8 +65,8 @@ FIRST_NAMES = [
 ]  # fmt: skip
 
 SURNAME_STARTS = [
-    "Brams", "Drøv", "Fjask", "Gjelm", "Hask", "Kvim", "Lystr", "Narv",
-    "Plim", "Rusk", "Skjelv", "Tind", "Ulst", "Vrål", "Ylv",
+    "Brams", "Drøv", "Fjask", "Gjelm", "Hask", "Kvim", "Lauv", "Myrk", "Narv",
+    "Plim", "Rusk", "Skarv", "Skjelv", "Tind", "Ulst", "Vrål", "Ylv",
 ]  # fmt: skip
 SURNAME_ENDS = ["mo", "vik", "stad", "rud", "dal", "heim", "set", "bø", "nes", "li", "haug", "berg"]
 
