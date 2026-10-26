@@ -22,18 +22,32 @@ def small_dataset(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 @pytest.fixture
-def conn() -> Iterator[psycopg.Connection]:
+def schema() -> Iterator[str]:
     # A throwaway schema per test keeps tests isolated from any loaded demo data.
-    schema = f"test_{uuid.uuid4().hex[:12]}"
+    name = f"test_{uuid.uuid4().hex[:12]}"
     with db.connect() as admin:
-        admin.execute(sql.SQL("create schema {}").format(sql.Identifier(schema)))
+        admin.execute(sql.SQL("create schema {}").format(sql.Identifier(name)))
+    try:
+        yield name
+    finally:
+        with db.connect() as admin:
+            admin.execute(sql.SQL("drop schema {} cascade").format(sql.Identifier(name)))
+
+
+@pytest.fixture
+def conn(schema: str) -> Iterator[psycopg.Connection]:
     connection = db.connect(options=f"-c search_path={schema}")
     try:
         yield connection
     finally:
         connection.close()
-        with db.connect() as admin:
-            admin.execute(sql.SQL("drop schema {} cascade").format(sql.Identifier(schema)))
+
+
+@pytest.fixture
+def cli_schema(schema: str, monkeypatch: pytest.MonkeyPatch) -> str:
+    # CLI commands open their own connections; libpq applies PGOPTIONS to each of them.
+    monkeypatch.setenv("PGOPTIONS", f"-c search_path={schema}")
+    return schema
 
 
 @pytest.fixture

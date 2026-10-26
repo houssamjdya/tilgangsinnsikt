@@ -13,6 +13,10 @@ from tilgangsinnsikt import db
 
 SEVERITIES = ["low", "medium", "high", "critical"]
 
+# Stored as findings so every run keeps them, but they describe the organisation as a
+# whole and are not weaknesses to act on.
+METRIC_RULES = {"rbac_coverage"}
+
 # Membership of these groups follows the HR unit automatically, so nobody decided to
 # grant it and there is nothing to review or remove.
 DYNAMIC_ENTITLEMENT_PATTERN = "entra:enhet-%"
