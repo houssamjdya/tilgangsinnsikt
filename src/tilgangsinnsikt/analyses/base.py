@@ -3,7 +3,7 @@
 import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any
 
 import psycopg
@@ -91,6 +91,14 @@ def save(conn: psycopg.Connection, run_id: str, findings: Sequence[Finding]) -> 
             for f in findings
         ),
     )
+
+
+def utc_midnight(day: date) -> datetime:
+    return datetime(day.year, day.month, day.day, tzinfo=UTC)
+
+
+def nb_percent(share: float) -> str:
+    return f"{round(100 * share)} %"
 
 
 def nb_date(value: date | str) -> str:

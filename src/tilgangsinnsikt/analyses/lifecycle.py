@@ -1,6 +1,6 @@
 """A1: lifecycle weaknesses for leavers, orphan accounts, dormant privileges and joiners."""
 
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from typing import Any
 
 import psycopg
@@ -16,6 +16,7 @@ from tilgangsinnsikt.analyses.base import (
     register,
     rows,
     save,
+    utc_midnight,
     who,
 )
 
@@ -39,8 +40,7 @@ RISK_ORDER = (
 def run(conn: psycopg.Connection, run_id: str, as_of: date) -> list[Finding]:
     params = {
         "as_of": as_of,
-        "stale_before": datetime(as_of.year, as_of.month, as_of.day, tzinfo=UTC)
-        - timedelta(days=DORMANT_DAYS),
+        "stale_before": utc_midnight(as_of - timedelta(days=DORMANT_DAYS)),
         "joined_after": as_of - timedelta(days=JOINER_DAYS),
         "joined_before": as_of - timedelta(days=JOINER_GRACE_DAYS),
         "dynamic": DYNAMIC_ENTITLEMENT_PATTERN,
